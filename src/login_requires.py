@@ -8,6 +8,8 @@ from ops.framework import (
     Object,
     ObjectEvents,
 )
+from ops.model import BlockedStatus
+
 
 
 logger = logging.getLogger()
@@ -32,7 +34,16 @@ class LoginRequires(Object):
             charm.on[relation_name].relation_changed,
             self._on_relation_changed
         )
+        self.framework.observe(
+            charm.on[relation_name].relation_joined,
+            self._on_relation_joined
+        )
+
+    def _on_relation_joined(self, event):
+        self.charm.unit.status = BlockedStatus("need to add-unit slurmd")
+
     def _on_relation_changed(self, event):
-        config = event.relation.data[event.unit].get("slurm_config", None)
-        self.charm._stored.slurm_config = json.loads(config)
-        self.on.config_available.emit()
+        added_config = event.relation.data[event.app].get("slurm_config", None)
+        if added_config:
+            self.charm._stored.slurm_config = json.loads(added_config)
+            self.on.config_available.emit()

@@ -24,7 +24,10 @@ class SlurmLoginCharm(CharmBase):
     def __init__(self, *args):
         """Initialize charm and configure states and events to observe."""
         super().__init__(*args)
-        self._stored.set_default(slurm_config = None)
+        self._stored.set_default(
+            slurm_config = None,
+            slurm_installed = False,
+            )
         self.slurm_ops_manager = SlurmOpsManager(self, "none")
         self._login = LoginRequires(self, 'login')
 
@@ -46,15 +49,20 @@ class SlurmLoginCharm(CharmBase):
     def _on_install(self, event):
         self.slurm_ops_manager.install()
         self.unit.status = ActiveStatus("slurm installed")
+        self._stored.slurm_installed = True
 
     def _on_start(self, event):
         if not self._stored.slurm_config:
             self.unit.status = BlockedStatus("need relation to slurmctld")
 
     def _on_config_available(self, event):
-        config = dict(self._stored.slurm_config)
-        self.slurm_ops_manager.render_config_and_restart(config)
-        self.unit.status = ActiveStatus("Login Charm Available")
+        if not self._stored.slurm_installed:
+            event.defer()
+            return
+        else:
+            config = dict(self._stored.slurm_config)
+            self.slurm_ops_manager.render_config_and_restart(config)
+            self.unit.status = ActiveStatus("Login Charm Available")
 
 if __name__ == "__main__":
     main(SlurmLoginCharm)
